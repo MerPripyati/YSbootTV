@@ -5,19 +5,53 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <group
-        android:pivotX="54"
-        android:pivotY="58"
-        android:scaleX="0.75"
-        android:scaleY="0.75">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M30,34 h48 a6,6 0 0 1 6,6 v28 a6,6 0 0 1 -6,6 h-48 a6,6 0 0 1 -6,-6 v-28 a6,6 0 0 1 6,-6 z M30,40 v28 h48 v-28 z" />
-        <path
-            android:fillColor="#80DEEA"
-            android:pathData="M42,78 h24 a2,2 0 0 1 2,2 v2 h-28 v-2 a2,2 0 0 1 2,-2 z" />
-        <path
-            android:fillColor="#00E5FF"
-            android:pathData="M49,47 l14,7 l-14,7 z" />
-    </group>
+    <!-- Светло-серый мягкий фон -->
+    <path
+        android:fillColor="#EEF2F6"
+        android:pathData="M0,0 h108 v108 h-108 z" />
+
+    <!-- Буква Y (плавные скруглённые линии, фирменный красно-оранжевый Яндекс) -->
+    <path
+        android:strokeColor="#FC3F1D"
+        android:strokeWidth="6.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M23,31 L33.5,46.5 L44,31 M33.5,46.5 L33.5,59" />
+
+    <!-- Лёгкий розовато-оранжевый блик на правой ветке Y -->
+    <path
+        android:strokeColor="#FF2E63"
+        android:strokeWidth="6.4"
+        android:strokeLineCap="round"
+        android:pathData="M37,41.5 L44,31" />
+
+    <!-- Аккуратный скруглённый плюс по центру -->
+    <path
+        android:strokeColor="#78909C"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:pathData="M54,40.5 L54,51.5 M48.5,46 L59.5,46" />
+
+    <!-- Плавная буква S (фирменный зелёный Сбер) -->
+    <path
+        android:strokeColor="#21A038"
+        android:strokeWidth="6.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M83,35.5 C81.5,32 78,30.5 74,30.5 C68.5,30.5 65,33.5 65,37.8 C65,42.5 69.5,44 74.5,45.2 C79.5,46.4 84,48 84,53 C84,57.5 79.8,60 74,60 C69.2,60 65.5,58 64,54.5" />
+
+    <!-- Тёмная капсула-бейдж для TV снизу -->
+    <path
+        android:fillColor="#1E242B"
+        android:pathData="M36,69 h36 a8,8 0 0,1 8,8 v2 a8,8 0 0,1 -8,8 h-36 a8,8 0 0,1 -8,-8 v-2 a8,8 0 0,1 8,-8 z" />
+
+    <!-- Белая надпись TV внутри капсулы -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43,74 L51,74 M47,74 L47,82.5 M55.5,74 L59.5,82.5 L63.5,74" />
+
+
 </vector>

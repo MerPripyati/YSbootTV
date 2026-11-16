@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.ysboottv"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.5"
+        versionCode = 10
+        versionName = "0.8"
     }
 
     buildTypes {

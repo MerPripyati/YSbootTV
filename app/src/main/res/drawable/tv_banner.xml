@@ -1,27 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
     <vector xmlns:android="http://schemas.android.com/apk/res/android"
-        android:width="320dp"
-        android:height="180dp"
-        android:viewportWidth="320"
-        android:viewportHeight="180">
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
 
+    <!-- Растянутый на весь баннер светло-серый фон -->
+    <path
+        android:fillColor="#DFE5EB"
+        android:pathData="M0,0 h320 v180 h-320 z" />
+
+    <!-- Оригинальная композиция 108x108 строго по центру -->
+    <group
+        android:translateX="63"
+        android:translateY="-14"
+        android:scaleX="1.8"
+        android:scaleY="1.8">
+
+    <!-- Буква Y -->
         <path
-            android:fillColor="#0D1B2A"
-            android:pathData="M0,0h320v180h-320z" />
+            android:strokeColor="#FC3F1D"
+            android:strokeWidth="6.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M23,31 L33.5,46.5 L44,31 M33.5,46.5 L33.5,59" />
 
-        <group
-            android:translateX="62.8"
-            android:translateY="-14.4"
-            android:scaleX="1.8"
-            android:scaleY="1.8">
-            <path
-                android:fillColor="#FFFFFF"
-                android:pathData="M30,34 h48 a6,6 0 0 1 6,6 v28 a6,6 0 0 1 -6,6 h-48 a6,6 0 0 1 -6,-6 v-28 a6,6 0 0 1 6,-6 z M30,40 v28 h48 v-28 z" />
-            <path
-                android:fillColor="#80DEEA"
-                android:pathData="M42,78 h24 a2,2 0 0 1 2,2 v2 h-28 v-2 a2,2 0 0 1 2,-2 z" />
-            <path
-                android:fillColor="#00E5FF"
-                android:pathData="M49,47 l14,7 l-14,7 z" />
-        </group>
-    </vector>
+        <!-- Блик Y -->
+        <path
+            android:strokeColor="#FF2E63"
+            android:strokeWidth="6.4"
+            android:strokeLineCap="round"
+            android:pathData="M37,41.5 L44,31" />
+
+        <!-- Плюс -->
+        <path
+            android:strokeColor="#78909C"
+            android:strokeWidth="3.4"
+            android:strokeLineCap="round"
+            android:pathData="M54,40.5 L54,51.5 M48.5,46 L59.5,46" />
+
+        <!-- Буква S -->
+        <path
+            android:strokeColor="#21A038"
+            android:strokeWidth="6.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M83,35.5 C81.5,32 78,30.5 74,30.5 C68.5,30.5 65,33.5 65,37.8 C65,42.5 69.5,44 74.5,45.2 C79.5,46.4 84,48 84,53 C84,57.5 79.8,60 74,60 C69.2,60 65.5,58 64,54.5" />
+
+        <!-- Капсула TV -->
+        <path
+            android:fillColor="#1E242B"
+            android:pathData="M36,69 h36 a8,8 0 0,1 8,8 v2 a8,8 0 0,1 -8,8 h-36 a8,8 0 0,1 -8,-8 v-2 a8,8 0 0,1 8,-8 z" />
+
+        <!-- Надпись TV -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M43,74 L51,74 M47,74 L47,82.5 M55.5,74 L59.5,82.5 L63.5,74" />
+
+    </group>
+</vector>
