@@ -13,19 +13,35 @@ android {
         applicationId = "com.example.ysboottv"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.8"
+        versionCode = 12
+        versionName = "0.9.5"
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
+    androidResources {
+        noCompress += "arsc"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -34,7 +50,6 @@ android {
         compose = true
     }
 }
-
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))

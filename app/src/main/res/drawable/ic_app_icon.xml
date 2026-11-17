@@ -1,29 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
     <!-- Светло-серый мягкий фон -->
-    <path
-        android:fillColor="#EEF2F6"
-        android:pathData="M0,0 h108 v108 h-108 z" />
+    <group
+        android:scaleX="0.92"
+        android:scaleY="0.92"
+        android:translateX="4.32"
+        android:translateY="3.5">
 
-    <!-- Буква Y (плавные скруглённые линии, фирменный красно-оранжевый Яндекс) -->
+    <!-- Буква Y с плавным диагональным градиентом -->
     <path
-        android:strokeColor="#FC3F1D"
         android:strokeWidth="6.4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M23,31 L33.5,46.5 L44,31 M33.5,46.5 L33.5,59" />
-
-    <!-- Лёгкий розовато-оранжевый блик на правой ветке Y -->
-    <path
-        android:strokeColor="#FF2E63"
-        android:strokeWidth="6.4"
-        android:strokeLineCap="round"
-        android:pathData="M37,41.5 L44,31" />
+        android:pathData="M22,30.5 L33.5,46.5 L45,30.5 M33.5,46.5 L33.5,60.5">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="24"
+                android:startY="45"
+                android:endX="44"
+                android:endY="31"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FC3F1D" />
+                <item android:offset="0.22" android:color="#FC3F1D" />
+                <item android:offset="0.90" android:color="#FF2E63" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
     <!-- Аккуратный скруглённый плюс по центру -->
     <path
@@ -32,26 +39,25 @@
         android:strokeLineCap="round"
         android:pathData="M54,40.5 L54,51.5 M48.5,46 L59.5,46" />
 
-    <!-- Плавная буква S (фирменный зелёный Сбер) -->
+    <!-- Плавная буква S (поднята вровень с Y) -->
     <path
         android:strokeColor="#21A038"
         android:strokeWidth="6.4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M83,35.5 C81.5,32 78,30.5 74,30.5 C68.5,30.5 65,33.5 65,37.8 C65,42.5 69.5,44 74.5,45.2 C79.5,46.4 84,48 84,53 C84,57.5 79.8,60 74,60 C69.2,60 65.5,58 64,54.5" />
+        android:pathData="M83,34.7 C81.5,31.0 78,29.5 74,29.5 C68.5,29.5 65,32.6 65,37.0 C65,41.9 69.5,43.4 74.5,44.7 C79.5,45.9 84,47.6 84,52.8 C84,57.4 79.8,60.5 74,60.5 C69.2,60.5 65.5,58.4 64,54.8" />
 
-    <!-- Тёмная капсула-бейдж для TV снизу -->
+    <!-- Тёмная капсула-бейдж для boot снизу -->
     <path
         android:fillColor="#1E242B"
         android:pathData="M36,69 h36 a8,8 0 0,1 8,8 v2 a8,8 0 0,1 -8,8 h-36 a8,8 0 0,1 -8,-8 v-2 a8,8 0 0,1 8,-8 z" />
 
-    <!-- Белая надпись TV внутри капсулы -->
+    <!-- Белая надпись boot внутри капсулы -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.6"
+        android:strokeWidth="2.35"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M43,74 L51,74 M47,74 L47,82.5 M55.5,74 L59.5,82.5 L63.5,74" />
-
-
+        android:pathData="M38.4,73.0 L38.4,82.5 M38.4,78.6 C38.4,76.6 39.6,75.6 41.2,75.6 C42.9,75.6 44.0,76.8 44.0,79.0 C44.0,81.3 42.9,82.5 41.2,82.5 C39.6,82.5 38.4,81.5 38.4,79.5 M50.5,75.6 C52.3,75.6 53.5,76.9 53.5,79.0 C53.5,81.2 52.3,82.5 50.5,82.5 C48.7,82.5 47.5,81.2 47.5,79.0 C47.5,76.9 48.7,75.6 50.5,75.6 Z M60.0,75.6 C61.8,75.6 63.0,76.9 63.0,79.0 C63.0,81.2 61.8,82.5 60.0,82.5 C58.2,82.5 57.0,81.2 57.0,79.0 C57.0,76.9 58.2,75.6 60.0,75.6 Z M67.5,73.6 L67.5,80.7 C67.5,81.8 68.1,82.5 69.2,82.5 L70.0,82.5 M66.2,75.8 L69.5,75.8" />
+    </group>
 </vector>

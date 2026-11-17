@@ -44,25 +44,20 @@ class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
     private lateinit var listContainer: LinearLayout
+    private lateinit var btnPerm: Button
     private lateinit var btnSource: Button
     private var showAllSystem = false
+
+    private var pickingHomeLauncher = false
     private lateinit var listHeader: TextView
-    private var showInputsMode = false
+    private var currentTab = 0 // 0 = Приложения, 1 = Видеовыходы, 2 = Права и обход
     private var availableInputs: List<InputOption> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val isHomeLaunch = intent?.hasCategory(Intent.CATEGORY_HOME) == true
         val prefs = getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE)
+        handleHomeLaunch(intent)
 
-        if (isHomeLaunch && hasConfiguredTarget(prefs)) {
-            val delaySec = prefs.getInt("delay_sec", 3)
-            Handler(Looper.getMainLooper()).postDelayed({
-                launchConfiguredTarget(this)
-                finish()
-            }, delaySec * 1000L)
-            return
-        }
 
         availableInputs = loadAvailableTvInputs()
 
@@ -102,16 +97,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 0, 0, 24)
         }
-        val btnPerm = createTvButton("1. Права поверх окон") {
-            requestBatteryExemption()
-            openOverlaySettings()
-        }.apply {
-            setOnLongClickListener {
-                openAppDetailsSettings()
-                true
-            }
+
+        btnPerm = createTvButton("1. Права и обход") {
+            pickingHomeLauncher = false
+            switchTab(2)
         }
         controlsRow.addView(btnPerm)
+
 
         val btnDelay = createTvButton("2. Задержка: ${prefs.getInt("delay_sec", 3)} сек") { btn ->
             val current = prefs.getInt("delay_sec", 3)
@@ -129,36 +121,27 @@ class MainActivity : Activity() {
         }
         controlsRow.addView(btnDelay)
 
-        val btnFilter = createTvButton("3. Все системные: ВЫКЛ") { btn ->
-            showAllSystem = !showAllSystem
-            btn.text = if (showAllSystem) "3. Все системные: ВКЛ" else "3. Все системные: ВЫКЛ"
-            loadAppsList()
+        val btnAutoStart = createTvButton("3. Автозапуск") {
+            pickingHomeLauncher = false
+            switchTab(0)
         }
-        controlsRow.addView(btnFilter)
+        controlsRow.addView(btnAutoStart)
 
-        btnSource = createTvButton("4. Видеовыходы") { btn ->
-            showInputsMode = !showInputsMode
-            if (showInputsMode) {
-                btn.text = "4. К приложениям"
-                listHeader.text = "Выберите видеовыход (нажмите ОК на пульте):"
-                loadInputsList()
-            } else {
-                btn.text = "4. Видеовыходы"
-                listHeader.text = "Выберите приложение (нажмите ОК на пульте):"
-                loadAppsList()
-            }
+        btnSource = createTvButton("4. Видеовыходы") {
+            pickingHomeLauncher = false
+            switchTab(1)
         }
         controlsRow.addView(btnSource)
-
 
         val btnTest = createTvButton("5. Тест запуска") {
             if (hasConfiguredTarget(prefs)) {
                 launchConfiguredTarget(this)
             } else {
-                Toast.makeText(this, "Сначала выберите ТВ из списка или HDMI в пункте 4!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Сначала выберите ТВ в п.3 или HDMI в п.4!", Toast.LENGTH_SHORT).show()
             }
         }
         controlsRow.addView(btnTest)
+
 
         mainLayout.addView(controlsRow)
 
@@ -179,16 +162,149 @@ class MainActivity : Activity() {
         setContentView(rootScroll)
 
         updateStatus()
-        loadAppsList()
+        val isFirstRun = !prefs.getBoolean("first_setup_shown", false)
+        if (isFirstRun) {
+            prefs.edit().putBoolean("first_setup_shown", true).apply()
+            switchTab(2)
+        } else {
+            switchTab(0)
+        }
+
         try {
             TvWatchService.start(this)
         } catch (_: Exception) {}
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleHomeLaunch(intent)
+    }
+
+    private fun handleHomeLaunch(launchIntent: Intent?): Boolean {
+        val isHomeLaunch = launchIntent?.hasCategory(Intent.CATEGORY_HOME) == true
+        val prefs = getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE)
+        if (!isHomeLaunch) return false
+
+        // 1. Проверяем, был ли это первый запуск после включения/перезагрузки телевизора
+        if (!wasHomeBootHandled && hasConfiguredTarget(prefs)) {
+            wasHomeBootHandled = true
+            val delaySec = prefs.getInt("delay_sec", 3)
+            Handler(Looper.getMainLooper()).postDelayed({
+                launchConfiguredTarget(this)
+            }, delaySec * 1000L)
+            return false // Показываем интерфейс YSbootTV во время задержки, чтобы не было пустого экрана
+        }
+
+        // 2. Повторное нажатие кнопки «Домой» -> переходим на родной рабочий стол
+        val customHomePkg = prefs.getString("home_launcher_pkg", null)
+        if (!customHomePkg.isNullOrEmpty()) {
+            try {
+                val customIntent = packageManager.getLaunchIntentForPackage(customHomePkg)
+                    ?: packageManager.getLeanbackLaunchIntentForPackage(customHomePkg)
+                if (customIntent != null) {
+                    customIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(customIntent)
+                    return false
+                }
+            } catch (_: Exception) {}
+        }
+
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PackageManager.MATCH_ALL or PackageManager.MATCH_DISABLED_COMPONENTS
+        } else {
+            PackageManager.MATCH_DISABLED_COMPONENTS
+        }
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+        val resolveInfos = packageManager.queryIntentActivities(homeIntent, flags)
+
+        val realLaunchers = resolveInfos.filter {
+            val pkg = it.activityInfo.packageName
+            pkg != packageName && pkg != "com.android.settings"
+        }
+
+        for (info in realLaunchers) {
+            val stockPkg = info.activityInfo.packageName
+            val stockCls = info.activityInfo.name
+            try {
+                val directNoCat = Intent(Intent.ACTION_MAIN).apply {
+                    setClassName(stockPkg, stockCls)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                startActivity(directNoCat)
+                return false
+            } catch (_: Exception) {}
+        }
+
+        val knownLaunchers = listOf(
+            "com.android.ld.appstore",
+            "com.android.ld.launcher",
+            "com.android.launcher3",
+            "com.android.launcher",
+            "com.google.android.tvlauncher",
+            "com.google.android.apps.tv.launcherx",
+            "ru.sberdevices.starlauncher",
+            "com.yandex.tv.home",
+            "com.mitv.tvhome",
+            "com.xiaomi.mitv.tvhome",
+            "com.tcl.cyberui",
+            "com.tcl.tvlauncher",
+            "com.hisense.tv.launcher",
+            "org.droidtv.nettv",
+            "com.mediatek.wwtv.tvcenter"
+        )
+        for (pkg in knownLaunchers) {
+            try {
+                val intent = packageManager.getLaunchIntentForPackage(pkg)
+                    ?: packageManager.getLeanbackLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    return false
+                }
+            } catch (_: Exception) {}
+        }
+
+        return false
+    }
+
+
+
+
+
     override fun onResume() {
         super.onResume()
-        updateStatus()
+        if (::statusText.isInitialized) {
+            updateStatus()
+            if (currentTab == 2) loadPermissionsList()
+        }
     }
+
+    private fun switchTab(tab: Int) {
+        currentTab = tab
+        btnPerm.text = if (pickingHomeLauncher) {
+            "1. Назад к правам"
+        } else {
+            "1. Права и обход"
+        }
+        when (tab) {
+            0 -> {
+                pickingHomeLauncher = false
+                listHeader.text = "Автозапуск: выберите приложение (нажмите ОК):"
+                loadAppsList()
+            }
+            1 -> {
+                listHeader.text = "Выберите видеовыход (нажмите ОК на пульте):"
+                loadInputsList()
+            }
+            2 -> {
+                listHeader.text = "Настройка прав и обхода блокировок (нажмите ОК):"
+                loadPermissionsList()
+            }
+        }
+    }
+
+
 
     private fun loadAvailableTvInputs(): List<InputOption> {
         val result = mutableListOf(InputOption("", "ВЫКЛ"))
@@ -227,8 +343,8 @@ class MainActivity : Activity() {
 
         val permStatus = when {
             hasOverlay && batteryIgnored -> "ВЫДАНЫ (Полные)"
-            hasOverlay -> "ВЫДАНЫ (Удерживайте 1 для настроек)"
-            else -> "НЕТ ОВЕРЛЕЯ (Резерв FullScreen / Удерживайте 1)"
+            hasOverlay -> "ВЫДАНЫ (Откройте п.1 для работы в фоне)"
+            else -> "НЕТ ОВЕРЛЕЯ (Резерв FullScreen / Откройте п.1)"
         }
 
         val targetInfo = if (inputId.isNotEmpty()) {
@@ -240,47 +356,159 @@ class MainActivity : Activity() {
         statusText.text = "$targetInfo\nЗадержка: $delay сек | Права: $permStatus | Сторож сна: АКТИВЕН"
     }
 
+    private fun loadPermissionsList() {
+        listContainer.removeAllViews()
+
+        val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(this)
+        } else true
+
+        val batteryIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            pm?.isIgnoringBatteryOptimizations(packageName) == true
+        } else true
+
+        val notifEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.areNotificationsEnabled() != false
+        } else true
+
+        val isDefaultLauncher = try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+            val res = packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            res?.activityInfo?.packageName == packageName
+        } catch (_: Exception) { false }
+
+        val items = listOf(
+            Triple(
+                if (hasOverlay) "1. Поверх других окон (Оверлей) [ВКЛ]" else "1. Поверх других окон (Оверлей) [ВЫКЛ]",
+                hasOverlay
+            ) { openOverlaySettings() },
+            Triple(
+                if (batteryIgnored) "2. Работа в фоне / Батарея [ВКЛ]" else "2. Работа в фоне / Батарея [ВЫКЛ]",
+                batteryIgnored
+            ) { requestBatteryExemption() },
+            Triple(
+                if (notifEnabled) "3. Уведомления (для Android 13–14) [ВКЛ]" else "3. Уведомления (для Android 13–14) [ВЫКЛ]",
+                notifEnabled
+            ) { openNotificationSettings() },
+            Triple(
+                "4. Настройки приложения (Автозапуск / Память)",
+                false
+            ) { openAppDetailsSettings() },
+            Triple(
+                if (isDefaultLauncher) "5. Назначить главным экраном (Для старых ТВ) [ВКЛ]" else "5. Назначить главным экраном (Для старых ТВ) [ВЫКЛ]",
+                isDefaultLauncher
+            ) { openHomeLauncherSettings() },
+            Triple(
+                "6. Кнопка Домой (Для старых ТВ): ${getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE).getString("home_launcher_name", "Автопоиск")}",
+                getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE).contains("home_launcher_pkg")
+            ) {
+                pickingHomeLauncher = true
+                btnPerm.text = "1. Назад к правам"
+                listHeader.text = "Выберите родной лаунчер для кнопки ДОМОЙ:"
+                loadAppsList()
+            }
+        )
+
+
+        for ((label, isOk, action) in items) {
+            val btn = Button(this).apply {
+                text = label
+                isAllCaps = false
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                textSize = 16f
+                setPadding(24, 18, 24, 18)
+                setTextColor(Color.WHITE)
+                setBackgroundColor(if (isOk) Color.parseColor("#1B5E20") else Color.parseColor("#263238"))
+                isFocusable = true
+                isFocusableInTouchMode = false
+
+                setOnFocusChangeListener { v, hasFocus ->
+                    if (hasFocus) {
+                        v.setBackgroundColor(Color.parseColor("#0277BD"))
+                    } else {
+                        v.setBackgroundColor(if (isOk) Color.parseColor("#1B5E20") else Color.parseColor("#263238"))
+                    }
+                }
+                setOnClickListener { action() }
+            }
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, 10) }
+            listContainer.addView(btn, params)
+        }
+    }
+
     private fun openAppDetailsSettings() {
         try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:$packageName")
-            }
-            startActivity(intent)
-        } catch (_: Exception) {}
+            })
+        } catch (_: Exception) {
+            try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {}
+        }
     }
 
     @SuppressLint("BatteryLife")
     private fun requestBatteryExemption() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
-                if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                    startActivity(intent)
-                }
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                })
+                return
+            } catch (_: Exception) {}
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                return
             } catch (_: Exception) {}
         }
+        openAppDetailsSettings()
     }
 
     private fun openOverlaySettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                val intent = Intent(
+                startActivity(Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:$packageName")
-                )
-                startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(
-                    this,
-                    "Окно скрыто. ADB: adb shell appops set $packageName SYSTEM_ALERT_WINDOW allow",
-                    Toast.LENGTH_LONG
-                ).show()
+                ))
+                return
+            } catch (_: Exception) {}
+        }
+        openAppDetailsSettings()
+    }
+
+    private fun openNotificationSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                })
+                return
             }
+        } catch (_: Exception) {}
+        openAppDetailsSettings()
+    }
+
+    private fun openHomeLauncherSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            return
+        } catch (_: Exception) {}
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(Intent.createChooser(homeIntent, "Выберите главный экран"))
+        } catch (_: Exception) {
+            openAppDetailsSettings()
         }
     }
+
 
     private fun loadInputsList() {
         listContainer.removeAllViews()
@@ -384,11 +612,133 @@ class MainActivity : Activity() {
         }
     }
 
+
     private fun loadAppsList() {
         listContainer.removeAllViews()
+        val prefs = getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE)
+
+        if (pickingHomeLauncher) {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PackageManager.MATCH_ALL or PackageManager.MATCH_DISABLED_COMPONENTS
+            } else {
+                PackageManager.MATCH_DISABLED_COMPONENTS
+            }
+            val ignoredSystemPkgs = setOf(
+                packageName,
+                "com.android.settings",
+                "android",
+                "com.google.android.gms",
+                "com.android.managedprovisioning"
+            )
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+            val homes = packageManager.queryIntentActivities(homeIntent, flags)
+                .filter { it.activityInfo.packageName !in ignoredSystemPkgs }
+                .distinctBy { it.activityInfo.packageName }
+
+            val activeHome = prefs.getString("home_launcher_pkg", null)
+
+            // Красная кнопка сброса, если выбран ручной лаунчер
+            if (!activeHome.isNullOrEmpty()) {
+                val resetBtn = Button(this).apply {
+                    text = "✕ Сбросить выбор (Вернуть Автопоиск)"
+                    isAllCaps = false
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                    textSize = 16f
+                    setPadding(24, 18, 24, 18)
+                    setTextColor(Color.parseColor("#FFCDD2"))
+                    setBackgroundColor(Color.parseColor("#4A2C2A"))
+                    isFocusable = true
+                    isFocusableInTouchMode = false
+                    setOnFocusChangeListener { v, hasFocus ->
+                        v.setBackgroundColor(if (hasFocus) Color.parseColor("#6E3B37") else Color.parseColor("#4A2C2A"))
+                    }
+                    setOnClickListener {
+                        prefs.edit().remove("home_launcher_pkg").remove("home_launcher_name").apply()
+                        Toast.makeText(this@MainActivity, "Кнопка Домой: Автопоиск", Toast.LENGTH_SHORT).show()
+                        pickingHomeLauncher = false
+                        switchTab(2)
+                    }
+                }
+                val resetParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 0, 14) }
+                listContainer.addView(resetBtn, resetParams)
+            }
+
+            val options = mutableListOf<Pair<String, String?>>()
+            options.add("Автопоиск (рекомендуется)" to null)
+
+            val addedPkgs = mutableSetOf<String>()
+            for (info in homes) {
+                val label = info.loadLabel(packageManager).toString()
+                val pkg = info.activityInfo.packageName
+                options.add("[ЛАУНЧЕР] $label ($pkg)" to pkg)
+                addedPkgs.add(pkg)
+            }
+
+            // Показываем только реальные приложения, у которых есть окно запуска (без библиотек и фоновых служб)
+            val launchableApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+                .filter {
+                    it.packageName !in ignoredSystemPkgs &&
+                            it.packageName !in addedPkgs &&
+                            (packageManager.getLaunchIntentForPackage(it.packageName) != null ||
+                                    packageManager.getLeanbackLaunchIntentForPackage(it.packageName) != null)
+                }
+                .map { packageManager.getApplicationLabel(it).toString() to it.packageName }
+                .sortedBy { it.first.lowercase() }
+
+            for ((label, pkg) in launchableApps) {
+                options.add("$label ($pkg)" to pkg)
+            }
+
+            for ((title, pkg) in options) {
+                val isSelected = activeHome == pkg
+                val btn = Button(this).apply {
+                    text = if (isSelected) "[ВЫБРАНО] $title" else title
+                    isAllCaps = false
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                    textSize = 16f
+                    setPadding(24, 18, 24, 18)
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(if (isSelected) Color.parseColor("#1B5E20") else Color.parseColor("#263238"))
+                    isFocusable = true
+                    isFocusableInTouchMode = false
+                    setOnFocusChangeListener { v, hasFocus ->
+                        v.setBackgroundColor(when {
+                            hasFocus -> Color.parseColor("#0277BD")
+                            isSelected -> Color.parseColor("#1B5E20")
+                            else -> Color.parseColor("#263238")
+                        })
+                    }
+                    setOnClickListener {
+                        if (pkg == null) {
+                            prefs.edit().remove("home_launcher_pkg").remove("home_launcher_name").apply()
+                            Toast.makeText(this@MainActivity, "Кнопка Домой: Автопоиск", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val cleanName = title.removePrefix("[ЛАУНЧЕР] ").substringBefore(" (")
+                            prefs.edit()
+                                .putString("home_launcher_pkg", pkg)
+                                .putString("home_launcher_name", cleanName)
+                                .apply()
+                            Toast.makeText(this@MainActivity, "Выбрано: $cleanName", Toast.LENGTH_SHORT).show()
+                        }
+                        pickingHomeLauncher = false
+                        switchTab(2)
+                    }
+                }
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 0, 10) }
+                listContainer.addView(btn, params)
+            }
+            return
+        }
+
+
         val pm = packageManager
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-        val prefs = getSharedPreferences("ysboot_prefs", Context.MODE_PRIVATE)
         val currentPkg = prefs.getString("target_pkg", null)
         val currentInputId = prefs.getString("target_input_id", "") ?: ""
 
@@ -417,9 +767,7 @@ class MainActivity : Activity() {
             val clearParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 14)
-            }
+            ).apply { setMargins(0, 0, 0, 14) }
             listContainer.addView(clearBtn, clearParams)
         }
 
@@ -433,15 +781,10 @@ class MainActivity : Activity() {
             val pkg = appInfo.packageName.lowercase()
             val lblLow = label.lowercase()
 
-            val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
             val matchesTv = keywords.any { pkg.contains(it) || lblLow.contains(it) }
-            val hasLaunchIntent = pm.getLaunchIntentForPackage(appInfo.packageName) != null
-
-            if (matchesTv || showAllSystem || hasLaunchIntent) {
-                if (!showAllSystem && isSystem && !matchesTv) continue
-                appItems.add(AppItem(label, appInfo.packageName, matchesTv))
-            }
+            appItems.add(AppItem(label, appInfo.packageName, matchesTv))
         }
+
 
         val sorted = appItems.sortedWith(
             compareByDescending<AppItem> { it.isTvPriority }.thenBy { it.name }
@@ -506,9 +849,7 @@ class MainActivity : Activity() {
             val params = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 10)
-            }
+            ).apply { setMargins(0, 0, 0, 10) }
             listContainer.addView(btn, params)
         }
     }
@@ -520,11 +861,11 @@ class MainActivity : Activity() {
             .putString("target_input_id", "")
             .putString("target_input_label", "ВЫКЛ")
             .apply()
-        btnSource.text = if (showInputsMode) "4. К приложениям" else "4. Видеовыходы"
         Toast.makeText(this, "Автозапуск отключен (ничего не выбрано)", Toast.LENGTH_SHORT).show()
         updateStatus()
-        if (showInputsMode) loadInputsList() else loadAppsList()
+        switchTab(currentTab)
     }
+
 
     private fun createTvButton(label: String, onClick: (Button) -> Unit): Button {
         return Button(this).apply {
@@ -551,6 +892,9 @@ class MainActivity : Activity() {
         }
     }
     companion object {
+
+        var wasHomeBootHandled = false
+
         fun hasConfiguredTarget(prefs: android.content.SharedPreferences): Boolean {
             val pkg = prefs.getString("target_pkg", null)
             val inputId = prefs.getString("target_input_id", "") ?: ""
@@ -800,7 +1144,7 @@ class TvWatchService : Service() {
             startForeground(
                 101,
                 notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             )
         } else {
             startForeground(101, notification)
@@ -808,6 +1152,7 @@ class TvWatchService : Service() {
     }
 
     companion object {
+
         fun start(context: Context) {
             try {
                 val intent = Intent(context, TvWatchService::class.java)
